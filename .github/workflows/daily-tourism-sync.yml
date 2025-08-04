@@ -1,0 +1,136 @@
+name: Daily Tourism Data Sync
+
+on:
+  schedule:
+    # 매일 새벽 2시 (UTC 기준, 한국시간 11시)
+    - cron: '0 2 * * *'
+  
+  # 수동 실행 가능
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: 'Force sync even if recent sync exists'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  sync-tourism-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set timezone to KST
+        run: |
+          echo "Current UTC time: $(date -u)"
+          echo "Current KST time: $(TZ='Asia/Seoul' date)"
+      
+      - name: Trigger Supabase Edge Function
+        id: sync
+        run: |
+          echo "🚀 Starting tourism data sync..."
+          
+          # Edge Function URL 구성
+          FUNCTION_URL="https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/tourism-sync"
+          
+          # API 호출
+          response=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"source": "github_actions", "force": "${{ github.event.inputs.force_sync }}"}' \
+            "$FUNCTION_URL")
+          
+          # HTTP 상태 코드와 응답 분리
+          http_code=$(echo $response | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+          body=$(echo $response | sed -e 's/HTTPSTATUS:.*//g')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response Body: $body"
+          
+          # 응답을 파일로 저장 (다음 단계에서 사용)
+          echo "$body" > sync_result.json
+          
+          # HTTP 상태 코드 확인
+          if [ "$http_code" -eq 200 ]; then
+            echo "✅ Sync request completed successfully"
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Sync request failed with HTTP $http_code"
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Parse and display results
+        if: always()
+        run: |
+          if [ -f sync_result.json ]; then
+            echo "📊 Sync Results:"
+            
+            # jq를 사용하여 JSON 파싱 및 포맷팅
+            if command -v jq &> /dev/null; then
+              echo "$(cat sync_result.json | jq '.')"
+              
+              # 요약 정보 추출
+              success=$(cat sync_result.json | jq -r '.success // false')
+              total_time=$(cat sync_result.json | jq -r '.total_execution_time // 0')
+              
+              echo ""
+              echo "📈 Summary:"
+              echo "- Overall Success: $success"
+              echo "- Total Execution Time: ${total_time}s"
+              
+              # 각 API 결과 표시
+              echo ""
+              echo "🔍 API Results:"
+              cat sync_result.json | jq -r '.results[]? | "- \(.api_type): \(.status) (\(.new // 0) new, \(.updated // 0) updated, \(.execution_time // 0)s)"'
+              
+            else
+              echo "Raw response:"
+              cat sync_result.json
+            fi
+          else
+            echo "❌ No sync result file found"
+          fi
+      
+      - name: Send notification on failure
+        if: failure()
+        run: |
+          echo "🚨 Tourism data sync failed!"
+          echo "Timestamp: $(date -u)"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          
+          # 실패 시 추가 알림 로직 (Slack, Discord 등)을 여기에 추가할 수 있음
+      
+      - name: Upload sync results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-results-${{ github.run_number }}
+          path: sync_result.json
+          retention-days: 30
+
+  # 선택적: 동기화 상태 확인 작업
+  check-sync-health:
+    runs-on: ubuntu-latest
+    needs: sync-tourism-data
+    if: always()
+    
+    steps:
+      - name: Check recent sync logs
+        run: |
+          echo "🔍 Checking recent sync health..."
+          
+          # 최근 동기화 로그 확인을 위한 추가 API 호출
+          # (필요시 별도 Edge Function 생성)
+          
+          echo "Health check completed"
+
+# 워크플로우 실행 권한 설정
+permissions:
+  contents: read
+  actions: read
