@@ -17,8 +17,8 @@ class SupabaseAreaBasedHandler:
         )
         self.mapper = AreaBasedMapper()
     
-    def get_existing_data(self, table_name, key_field):
-        """기존 데이터 조회"""
+    def get_existing_data(self, table_name, key_field, page_size=1000):
+        """기존 데이터 조회 (페이징으로 전체 조회)"""
         try:
             if isinstance(key_field, list):
                 # 복합 키인 경우 모든 키 필드와 data_hash 조회
@@ -26,19 +26,39 @@ class SupabaseAreaBasedHandler:
             else:
                 # 단일 키인 경우
                 select_fields = f"id, {key_field}, data_hash"
-            
-            response = self.client.table(table_name)\
-                .select(select_fields)\
-                .execute()
-            return response.data
+
+            all_rows = []
+            start = 0
+            while True:
+                end = start + page_size - 1
+                response = self.client.table(table_name)\
+                    .select(select_fields)\
+                    .range(start, end)\
+                    .execute()
+
+                rows = response.data or []
+                all_rows.extend(rows)
+
+                if len(rows) < page_size:
+                    break
+
+                start += page_size
+
+            return all_rows
         except Exception as e:
             print(f"❌ 기존 데이터 조회 실패: {str(e)}")
             return []
     
     def insert_record(self, table_name, data):
-        """신규 레코드 삽입"""
+        """신규 레코드 업서트(충돌 시 병합)"""
         try:
-            response = self.client.table(table_name).insert(data).execute()
+            # 테이블별 고유 제약 기준으로 on_conflict 지정
+            if table_name == 'base_tour_areabased':
+                on_conflict = "hubtatscode,baseym"
+            else:
+                # greentour_areabased, barrier_free_areabased는 contentid가 UNIQUE
+                on_conflict = "contentid"
+            response = self.client.table(table_name).upsert(data, on_conflict=on_conflict).execute()
             return response.data
         except Exception as e:
             print(f"❌ 레코드 삽입 실패: {str(e)}")
@@ -62,7 +82,8 @@ class SupabaseAreaBasedHandler:
         try:
             for i in range(0, len(data_list), batch_size):
                 batch = data_list[i:i + batch_size]
-                self.client.table(table_name).upsert(batch).execute()
+                # 고유 제약(UNIQUE): hubtatscode, baseym 기준으로 업서트
+                self.client.table(table_name).upsert(batch, on_conflict="hubtatscode,baseym").execute()
                 print(f"  📦 배치 {i//batch_size + 1}: {len(batch)}개 처리")
         except Exception as e:
             print(f"❌ 배치 업서트 실패: {str(e)}")
