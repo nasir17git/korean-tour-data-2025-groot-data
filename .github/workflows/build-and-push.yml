@@ -2,11 +2,6 @@ name: Build and Push Docker Image (manual)
 
 on:
   workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Docker image tag (default: latest)"
-        required: false
-        default: "latest"
 
 jobs:
   build-and-push:
@@ -27,12 +22,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract tag
-        id: meta
-        run: |
-          TAG=${{ github.event.inputs.image_tag }}
-          if [ -z "$TAG" ]; then TAG=latest; fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+      - name: Compute short SHA
+        id: vars
+        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -40,7 +32,8 @@ jobs:
           context: .
           push: true
           tags: |
-            nasir17/korean-tour-app-crawler:${{ steps.meta.outputs.tag }}
+            nasir17/korean-tour-app-crawler:latest
+            nasir17/korean-tour-app-crawler:${{ steps.vars.outputs.short_sha }}
           platforms: linux/amd64
 
 
