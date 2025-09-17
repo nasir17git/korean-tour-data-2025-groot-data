@@ -96,17 +96,17 @@ def fetch_all_pages(base_url, endpoint_path, base_params, max_pages=50):
 # API 별 기본 설정
 API_CONFIGS = {
     "greentour": {
-        "base_url": "https://apis.data.go.kr/B551011/GreenTourService1",
+        "base_url": "http://apis.data.go.kr/B551011/GreenTourService1",
         "app_name": "MyEcotourApp",
         "service_key": DATA_KEY_DECODING
     },
     "barrier_free": {
-        "base_url": "https://apis.data.go.kr/B551011/KorWithService2", 
+        "base_url": "http://apis.data.go.kr/B551011/KorWithService2", 
         "app_name": "BarrierFreeApp",
         "service_key": DATA_KEY_DECODING
     },
     "base_tour": {
-        "base_url": "https://apis.data.go.kr/B551011/LocgoHubTarService1",
+        "base_url": "http://apis.data.go.kr/B551011/LocgoHubTarService1",
         "app_name": "MyBaseTourApp", 
         "service_key": DATA_KEY_DECODING
     }
