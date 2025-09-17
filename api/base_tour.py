@@ -16,7 +16,7 @@ class BaseTourAPI:
         params.update({
             "MobileApp": self.config["app_name"],
             "serviceKey": self.config["service_key"],
-            "baseYm": "202503",
+            "baseYm": "202506",
             "areaCd": "47"
         })
         return params
