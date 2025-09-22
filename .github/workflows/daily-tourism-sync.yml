@@ -2,8 +2,10 @@ name: Daily Tourism Data Sync
 
 on:
   schedule:
-    # 매일 새벽 2시 (KST = UTC+9)
-    - cron: '0 17 * * *'
+    # 매일 새벽 4시 (KST = UTC+9 → UTC 19:00)
+    - cron: '0 19 * * *'
+    # 매일 오전 9시 (KST = UTC+9 → UTC 00:00)
+    - cron: '0 0 * * *'
   
   # 수동 실행 가능
   workflow_dispatch:
